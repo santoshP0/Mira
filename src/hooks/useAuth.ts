@@ -22,9 +22,12 @@ export function useAuthInit() {
 
       if (session?.user) {
         await loadUserData(session.user.id);
+
+        // Register push token and watch for rotation
         const token = await registerForPushNotifications();
         if (token) {
           await saveDeviceToken(session.user.id, token);
+          // Stop previous watcher if any
           tokenWatcherRef.current?.();
           tokenWatcherRef.current = watchTokenRefresh(session.user.id);
         }

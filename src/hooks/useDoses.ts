@@ -21,6 +21,7 @@ export function useTodayDoses(familyId: string | undefined, forUserId?: string) 
     queryKey: ['doses', 'today', familyId, forUserId],
     enabled: !!familyId,
     // Only poll when the app is in the foreground (saves battery).
+    // Real-time subscriptions handle live updates while active.
     refetchInterval: isActive ? 30_000 : false,
     staleTime: 15_000,
     queryFn: async () => {
@@ -70,6 +71,7 @@ export function useRespondToDose() {
       return { data, familyId };
     },
 
+    // Optimistic update — UI responds immediately, rolls back on error.
     onMutate: async ({ doseId, status, familyId, respondedBy }) => {
       await qc.cancelQueries({ queryKey: ['doses', 'today', familyId] });
       const snapshot = qc.getQueryData<DoseLog[]>(['doses', 'today', familyId]);
@@ -123,9 +125,11 @@ export function useHandleDose() {
     onMutate: async ({ doseId, userId, familyId }) => {
       await qc.cancelQueries({ queryKey: ['doses', 'today', familyId] });
       const snapshot = qc.getQueryData<DoseLog[]>(['doses', 'today', familyId]);
-      qc.setQueryData<DoseLog[]>(['doses', 'today', familyId'], (prev) =>
+
+      qc.setQueryData<DoseLog[]>(['doses', 'today', familyId], (prev) =>
         prev?.map((d) => (d.id === doseId ? { ...d, handling_by: userId } : d)) ?? []
       );
+
       return { snapshot };
     },
 

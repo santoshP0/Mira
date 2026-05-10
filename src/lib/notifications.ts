@@ -11,6 +11,7 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotifications(): Promise<string | null> {
+  // On physical device only — emulators can't receive push notifications
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -40,12 +41,13 @@ export async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
-  // Prefer Expo push token (compatible with the worker's Expo Push API).
-  // Falls back to native device token for bare workflow.
+  // Use Expo push token — compatible with the escalation worker's Expo Push API.
+  // Requires a valid Expo project (projectId in app.json under expo.extra.eas.projectId).
   try {
     const tokenData = await Notifications.getExpoPushTokenAsync();
     return tokenData.data;
   } catch {
+    // Fallback to device push token (works in bare workflow / without EAS)
     try {
       const deviceToken = await Notifications.getDevicePushTokenAsync();
       return deviceToken.data;
@@ -66,12 +68,13 @@ export async function saveDeviceToken(userId: string, token: string) {
   if (error) console.warn('[notifications] saveDeviceToken failed:', error.message);
 }
 
-// Listen for FCM token rotation and re-save. Returns cleanup function.
+// Listen for FCM token rotation (Android) and re-register.
+// Returns a cleanup function.
 export function watchTokenRefresh(userId: string): () => void {
-  const sub = Notifications.addPushTokenListener(async ({ data: token }) => {
+  const subscription = Notifications.addPushTokenListener(async ({ data: token }) => {
     if (token) await saveDeviceToken(userId, token);
   });
-  return () => sub.remove();
+  return () => subscription.remove();
 }
 
 export function setupNotificationListeners(
@@ -81,6 +84,7 @@ export function setupNotificationListeners(
   return () => sub.remove();
 }
 
+// Returns whether the user has granted notification permission.
 export async function hasNotificationPermission(): Promise<boolean> {
   const { status } = await Notifications.getPermissionsAsync();
   return status === 'granted';

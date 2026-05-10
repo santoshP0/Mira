@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Text, StyleSheet } from 'react-native';
+import { Animated, Text, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsAppActive } from '../../lib/offline';
 import { Colors, FontSizes, Spacing } from '../../constants/theme';
 import { useQueryClient } from '@tanstack/react-query';
 
+// Tracks first-time mounting — don't show "Back online" before any offline event.
 let hadOfflineEvent = false;
 
 export function OfflineBanner() {
@@ -14,8 +15,10 @@ export function OfflineBanner() {
   const isActive = useIsAppActive();
   const qc = useQueryClient();
 
+  // Probe connectivity every 10s when app is active
   useEffect(() => {
     if (!isActive) return;
+
     let cancelled = false;
 
     async function probe() {
@@ -60,6 +63,8 @@ export function OfflineBanner() {
     }).start();
   }, [visible]);
 
+  if (!visible && translateY.__getValue() <= -59) return null;
+
   const isReconnected = showReconnected && isOnline;
 
   return (
@@ -69,7 +74,6 @@ export function OfflineBanner() {
         { transform: [{ translateY }] },
         isReconnected ? styles.online : styles.offline,
       ]}
-      pointerEvents="none"
     >
       <Ionicons
         name={isReconnected ? 'checkmark-circle' : 'cloud-offline-outline'}

@@ -14,7 +14,11 @@ function SkeletonPulse({ style }: { style?: ViewStyle }) {
     ).start();
   }, []);
 
-  return <Animated.View style={[styles.base, style, { opacity }]} />;
+  return (
+    <Animated.View
+      style={[styles.base, style, { opacity }]}
+    />
+  );
 }
 
 export function SkeletonLine({ width = '80%', height = 14 }: { width?: number | string; height?: number }) {
@@ -96,7 +100,7 @@ const styles = StyleSheet.create({
   doseInfo: { flex: 1 },
   elderWrap: { padding: Spacing[4], gap: Spacing[4] },
   headerPlaceholder: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing[1] },
-  cardList: {},
   elderCardSkel: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing[4] },
   doseRowSkel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing[3] },
+  cardList: { gap: 0 },
 });

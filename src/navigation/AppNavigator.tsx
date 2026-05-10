@@ -11,17 +11,26 @@ import { OfflineBanner } from '../components/common/OfflineBanner';
 import { useAppStateFocus } from '../lib/offline';
 import { RootStackParamList, MainTabParamList } from '../types';
 
+// Auth screens
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { PhoneAuthScreen } from '../screens/auth/PhoneAuthScreen';
 import { RoleSelectScreen } from '../screens/auth/RoleSelectScreen';
 import { ProfileSetupScreen } from '../screens/auth/ProfileSetupScreen';
+
+// Family screens
 import { FamilySetupScreen } from '../screens/family/FamilySetupScreen';
 import { ScanQRScreen } from '../screens/family/ScanQRScreen';
 import { JoinFamilyScreen } from '../screens/family/JoinFamilyScreen';
 import { FamilyMembersScreen } from '../screens/family/FamilyMembersScreen';
+
+// Medicine screens
 import { AddMedicineScreen } from '../screens/medicine/AddMedicineScreen';
 import { EditMedicineScreen } from '../screens/medicine/EditMedicineScreen';
+
+// Dose screens
 import { DoseDetailScreen } from '../screens/doses/DoseDetailScreen';
+
+// Main tabs
 import { HomeScreen } from '../screens/HomeScreen';
 import { MedicinesScreen } from '../screens/MedicinesScreen';
 import { ActivityFeedScreen } from '../screens/activity/ActivityFeedScreen';
@@ -70,6 +79,7 @@ function MainTabs() {
 function AppContent() {
   const { session, family, isLoading } = useAuthStore();
 
+  // Wire AppState → React Query focusManager (refetch on foreground).
   useAppStateFocus();
 
   if (isLoading) {
@@ -120,6 +130,7 @@ function AppContent() {
               component={DoseDetailScreen}
               options={{ headerShown: false }}
             />
+            {/* headerShown: false — FamilyMembersScreen renders its own gradient header */}
             <Stack.Screen
               name="FamilyMembers"
               component={FamilyMembersScreen}
