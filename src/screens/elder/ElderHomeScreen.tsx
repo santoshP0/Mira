@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -287,7 +287,7 @@ export function ElderHomeScreen() {
         refreshing={false}
         windowSize={5}
         maxToRenderPerBatch={8}
-        removeClippedSubviews
+        removeClippedSubviews={true}
         ListHeaderComponent={
           allDone ? (
             <AnimatedEntry index={0}>
@@ -317,6 +317,7 @@ export function ElderHomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
+
   header: { paddingBottom: Spacing[5] },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing[5], paddingTop: Spacing[4], paddingBottom: Spacing[2] },
   headerLabel: { fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
@@ -327,16 +328,20 @@ const styles = StyleSheet.create({
   dueChipText: { fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
   sosBtn: { alignItems: 'center', gap: 2, backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: Spacing[3], paddingVertical: 6, borderRadius: Radius.md },
   sosBtnText: { fontSize: 10, color: Colors.coral, fontWeight: '800' },
+
   list: { padding: Spacing[4], gap: Spacing[3], paddingBottom: 100 },
+
   allDoneWrap: { alignItems: 'center', paddingVertical: Spacing[8], gap: Spacing[3] },
   allDoneIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   allDoneTitle: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.navy },
   allDoneSub: { fontSize: FontSizes.base, color: Colors.gray400, textAlign: 'center' },
+
   doseCard: { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing[4], borderWidth: 1.5, borderColor: Colors.gray200, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
   doseCardPending: { borderColor: Colors.sage, shadowColor: Colors.sage, shadowOpacity: 0.15, elevation: 3 },
   doseCardOverdue: { borderColor: Colors.coral, shadowColor: Colors.coral, shadowOpacity: 0.12 },
   overdueBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, position: 'absolute', top: -1, right: Spacing[3], backgroundColor: Colors.coral, paddingHorizontal: 8, paddingVertical: 3, borderBottomLeftRadius: Radius.sm, borderBottomRightRadius: Radius.sm },
   overdueText: { fontSize: 10, color: Colors.white, fontWeight: '700' },
+
   doseHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], marginBottom: Spacing[3] },
   pillPhoto: { width: 72, height: 72, borderRadius: Radius.md },
   pillPhotoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
@@ -345,6 +350,7 @@ const styles = StyleSheet.create({
   doseDose: { fontSize: FontSizes.base, color: Colors.gray500, marginTop: 2 },
   doseTime: { fontSize: FontSizes.base, color: Colors.sage, fontWeight: '600', marginTop: 2 },
   critBadge: { position: 'absolute', top: 0, right: 0 },
+
   actions: { gap: Spacing[2] },
   takenBtn: { borderRadius: Radius.md, overflow: 'hidden' },
   takenGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing[3], gap: Spacing[2] },

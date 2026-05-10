@@ -152,7 +152,6 @@ export function SettingsScreen() {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Family */}
         <AnimatedSection index={0}>
           <Text style={styles.sectionLabel}>Family</Text>
           <View style={styles.card}>
@@ -164,7 +163,6 @@ export function SettingsScreen() {
           </View>
         </AnimatedSection>
 
-        {/* Quiet Hours */}
         {isAdmin && (
           <AnimatedSection index={1}>
             <Text style={styles.sectionLabel}>Quiet Hours</Text>
@@ -212,7 +210,6 @@ export function SettingsScreen() {
           </AnimatedSection>
         )}
 
-        {/* About */}
         <AnimatedSection index={isAdmin ? 2 : 1}>
           <Text style={styles.sectionLabel}>About</Text>
           <View style={styles.card}>
@@ -233,7 +230,6 @@ export function SettingsScreen() {
           </View>
         </AnimatedSection>
 
-        {/* Sign out */}
         <AnimatedSection index={isAdmin ? 3 : 2}>
           <View style={styles.card}>
             <SettingRow icon="log-out-outline" label="Sign Out" onPress={signOut} destructive />

@@ -59,8 +59,8 @@ export function CaregiverHomeScreen() {
   useRealtimeDoses(family?.id);
 
   const elder = members?.find((m) => m.role === 'elder');
-  const needsAttention = doses?.filter((d) => d.status === 'escalated' || d.status === 'missed') ?? [];
   const pending = doses?.filter((d) => d.status === 'pending') ?? [];
+  const needsAttention = doses?.filter((d) => d.status === 'escalated' || d.status === 'missed') ?? [];
 
   function adherencePercent(): number {
     if (!doses || doses.length === 0) return 100;
@@ -75,9 +75,9 @@ export function CaregiverHomeScreen() {
   useEffect(() => {
     if (!doses) return;
     const target = adherencePercent();
-    const id = pctAnim.addListener(({ value }) => setDisplayPct(Math.round(value)));
+    const listener = pctAnim.addListener(({ value }) => setDisplayPct(Math.round(value)));
     Animated.timing(pctAnim, { toValue: target, duration: 900, useNativeDriver: false }).start();
-    return () => pctAnim.removeListener(id);
+    return () => pctAnim.removeListener(listener);
   }, [doses]);
 
   if (isLoading && !doses) {
@@ -121,6 +121,8 @@ export function CaregiverHomeScreen() {
 
       <ScrollView
         contentContainerStyle={styles.content}
+        onRefresh={refetch}
+        refreshing={false}
         showsVerticalScrollIndicator={false}
       >
         {elder && (
@@ -147,12 +149,14 @@ export function CaregiverHomeScreen() {
                     {needsAttention.length} dose{needsAttention.length > 1 ? 's' : ''} need attention
                   </Text>
                 </View>
-              ) : pending.length === 0 && doses && doses.length > 0 ? (
-                <View style={styles.goodBanner}>
-                  <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
-                  <Text style={styles.goodText}>All doses taken today</Text>
-                </View>
-              ) : null}
+              ) : (
+                pending.length === 0 && doses && doses.length > 0 ? (
+                  <View style={styles.goodBanner}>
+                    <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
+                    <Text style={styles.goodText}>All doses taken today</Text>
+                  </View>
+                ) : null
+              )}
             </LinearGradient>
           </AnimatedEntry>
         )}
@@ -239,13 +243,16 @@ function DoseRow({ dose }: { dose: DoseLog }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
+
   header: { paddingBottom: Spacing[4] },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing[5], paddingTop: Spacing[4], paddingBottom: Spacing[2] },
   headerGreeting: { fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
   headerName: { fontSize: FontSizes['2xl'], fontWeight: '800', color: Colors.white },
   membersBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing[1], backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full },
   membersBtnText: { fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
+
   content: { padding: Spacing[4], paddingBottom: 100, gap: Spacing[3] },
+
   elderCard: { borderRadius: Radius.xl, padding: Spacing[5], shadowColor: Colors.sageDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
   elderHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
   elderAvatarRing: { padding: 2, borderRadius: 30, borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)' },
@@ -259,18 +266,22 @@ const styles = StyleSheet.create({
   alertText: { fontSize: FontSizes.sm, color: Colors.coral, fontWeight: '600' },
   goodBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], marginTop: Spacing[4], backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Radius.md, padding: Spacing[3] },
   goodText: { fontSize: FontSizes.sm, color: '#A7F3D0', fontWeight: '600' },
+
   addMedCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing[4], borderWidth: 1.5, borderColor: '#C6E8D4', borderStyle: 'dashed' },
   addMedIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   addMedTitle: { fontSize: FontSizes.base, fontWeight: '700', color: Colors.navy },
   addMedSub: { fontSize: FontSizes.sm, color: Colors.gray400, marginTop: 2 },
   addMedArrow: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EBF5EF', alignItems: 'center', justifyContent: 'center' },
+
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: FontSizes.base, fontWeight: '700', color: Colors.navy },
   sectionMeta: { fontSize: FontSizes.sm, color: Colors.gray400 },
+
   emptyCard: { alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.lg, paddingVertical: Spacing[8], gap: Spacing[3], borderWidth: 1, borderColor: Colors.gray100 },
   emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.navy },
   emptyText: { fontSize: FontSizes.sm, color: Colors.gray400 },
+
   doseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing[3], borderWidth: 1, borderColor: Colors.gray100 },
   doseRowUrgent: { backgroundColor: '#FFF8F8', borderColor: '#FECACA' },
   critDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
