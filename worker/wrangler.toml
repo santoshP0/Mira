@@ -1,0 +1,11 @@
+name = "mira-escalation"
+main = "index.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# Set actual values via: wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SERVICE_KEY
+# wrangler secret put FCM_SERVER_KEY
