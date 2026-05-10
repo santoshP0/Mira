@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,54 +6,46 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  RefreshControl,
-  Alert,
   Animated,
+  Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../store/authStore';
 import { useTodayDoses, useRespondToDose } from '../../hooks/useDoses';
 import { useRealtimeDoses } from '../../lib/realtime';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { SkeletonElderHome } from '../../components/common/Skeleton';
 import { Colors, FontSizes, Spacing, Radius } from '../../constants/theme';
 import { formatTime } from '../../utils/date';
 import { DoseLog, RootStackParamList } from '../../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-function AnimatedEntry({ children, index }: { children: React.ReactNode; index: number }) {
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function AnimatedEntry({ index, children }: { index: number; children: React.ReactNode }) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const y = useRef(new Animated.Value(28)).current;
+  const translateY = useRef(new Animated.Value(28)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 450,
-        delay: 180 + index * 90,
-        useNativeDriver: true,
-      }),
-      Animated.spring(y, {
-        toValue: 0,
-        delay: 180 + index * 90,
-        tension: 80,
-        friction: 8,
-        useNativeDriver: true,
-      }),
+      Animated.timing(opacity, { toValue: 1, duration: 380, delay: 180 + index * 90, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, tension: 90, friction: 12, delay: 180 + index * 90, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  return (
-    <Animated.View style={{ opacity, transform: [{ translateY: y }] }}>
-      {children}
-    </Animated.View>
-  );
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
 }
 
 export function ElderHomeScreen() {
@@ -63,23 +55,28 @@ export function ElderHomeScreen() {
   const respondToDose = useRespondToDose();
 
   const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerY = useRef(new Animated.Value(-20)).current;
+  const headerTranslate = useRef(new Animated.Value(-20)).current;
 
   useRealtimeDoses(family?.id);
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(headerOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.spring(headerY, { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
+      Animated.timing(headerOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+      Animated.spring(headerTranslate, { toValue: 0, tension: 100, friction: 12, useNativeDriver: true }),
     ]).start();
   }, []);
 
   const pending = doses?.filter((d) => d.status === 'pending') ?? [];
   const done = doses?.filter((d) => d.status !== 'pending') ?? [];
-  const h = new Date().getHours();
-  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const allDone = !isLoading && doses !== undefined && pending.length === 0 && done.length > 0;
+  const noMeds = !isLoading && doses !== undefined && doses.length === 0;
+
+  function speak(text: string) {
+    Speech.speak(text, { language: 'en', pitch: 1.0, rate: 0.85 });
+  }
 
   async function handleTaken(dose: DoseLog) {
+    if (respondToDose.isPending) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       await respondToDose.mutateAsync({
@@ -88,113 +85,166 @@ export function ElderHomeScreen() {
         respondedBy: myMembership!.user_id,
         familyId: family!.id,
       });
-    } catch {}
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Could not record dose. Please try again.');
+    }
   }
 
   async function handleSkip(dose: DoseLog) {
-    Alert.alert('Skip this dose?', 'Your family will be notified.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Skip',
-        style: 'destructive',
-        onPress: async () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          await respondToDose.mutateAsync({
-            doseId: dose.id,
-            status: 'skipped',
-            respondedBy: myMembership!.user_id,
-            familyId: family!.id,
-          });
+    if (respondToDose.isPending) return;
+    Alert.alert(
+      'Skip dose?',
+      `Skip ${(dose.medicine as any)?.name ?? 'this medicine'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Skip',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            try {
+              await respondToDose.mutateAsync({
+                doseId: dose.id,
+                status: 'skipped',
+                respondedBy: myMembership!.user_id,
+                familyId: family!.id,
+              });
+            } catch {
+              Alert.alert('Error', 'Could not skip dose. Please try again.');
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   function handleSOS() {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    Alert.alert('Send SOS Alert?', 'This will immediately alert all your family members.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Send SOS', style: 'destructive', onPress: () => {} },
-    ]);
+    Alert.alert(
+      'Send SOS Alert?',
+      'This will immediately alert all your family members.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send SOS', style: 'destructive', onPress: () => navigation.navigate('SOS' as any) },
+      ]
+    );
   }
 
-  function renderCard(dose: DoseLog, index: number) {
-    const med = dose.medicine as any;
-    const isPending = dose.status === 'pending';
-    const isOverdue = isPending && new Date(dose.scheduled_at) < new Date();
+  const renderDoseCard = useCallback(
+    ({ item: dose, index }: { item: DoseLog; index: number }) => {
+      const med = dose.medicine as any;
+      const isPending = dose.status === 'pending';
+      const now = new Date();
+      const scheduled = new Date(dose.scheduled_at);
+      const isOverdue = isPending && now > scheduled;
 
-    return (
-      <AnimatedEntry index={index} key={dose.id}>
-        <View style={[
-          styles.card,
-          isPending && styles.cardPending,
-          isOverdue && styles.cardOverdue,
-        ]}>
-          {isOverdue && (
-            <View style={styles.overdueBadge}>
-              <Ionicons name="time" size={11} color="#fff" />
-              <Text style={styles.overdueBadgeText}>Overdue</Text>
-            </View>
-          )}
+      return (
+        <AnimatedEntry index={index}>
+          <View style={[styles.doseCard, isPending && styles.doseCardPending, isOverdue && styles.doseCardOverdue]}>
+            {isOverdue && (
+              <View style={styles.overdueBadge}>
+                <Ionicons name="time" size={11} color={Colors.white} />
+                <Text style={styles.overdueText}>
+                  {Math.round((now.getTime() - scheduled.getTime()) / 60000)}m late
+                </Text>
+              </View>
+            )}
 
-          <View style={styles.cardTop}>
-            <View style={[styles.photoWrap, !isPending && styles.photoWrapDone]}>
+            <View style={styles.doseHeader}>
               {med?.photo_url ? (
-                <Image source={{ uri: med.photo_url }} style={styles.photo} />
+                <Image source={{ uri: med.photo_url }} style={styles.pillPhoto} />
               ) : (
-                <Ionicons name="medical" size={30} color={isPending ? Colors.sage : Colors.gray400} />
+                <LinearGradient
+                  colors={isPending ? ['#EBF5EF', '#D4EDDF'] : [Colors.gray100, Colors.gray200]}
+                  style={[styles.pillPhoto, styles.pillPhotoPlaceholder]}
+                >
+                  <Ionicons name="medical" size={30} color={isPending ? Colors.sage : Colors.gray400} />
+                </LinearGradient>
+              )}
+
+              <View style={styles.doseInfo}>
+                <Text style={styles.doseName} numberOfLines={1}>{med?.name ?? 'Medicine'}</Text>
+                {med?.dose ? <Text style={styles.doseDose}>{med.dose}</Text> : null}
+                <Text style={[styles.doseTime, isOverdue && { color: Colors.coral }]}>
+                  {formatTime(dose.scheduled_at)}
+                </Text>
+              </View>
+
+              {!isPending && <StatusBadge status={dose.status} />}
+              {med?.criticality === 'high' && (
+                <View style={styles.critBadge}>
+                  <Ionicons name="alert-circle" size={15} color={Colors.coral} />
+                </View>
               )}
             </View>
-            <View style={styles.cardMeta}>
-              <Text style={styles.medName}>{med?.name ?? 'Medicine'}</Text>
-              {med?.dose ? <Text style={styles.medDose}>{med.dose}</Text> : null}
-              <View style={styles.timeChip}>
-                <Ionicons name="time-outline" size={12} color={Colors.sage} />
-                <Text style={styles.timeText}>{formatTime(dose.scheduled_at)}</Text>
+
+            {isPending && (
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[styles.takenBtn, respondToDose.isPending && styles.btnDisabled]}
+                  onPress={() => handleTaken(dose)}
+                  activeOpacity={0.85}
+                  disabled={respondToDose.isPending}
+                >
+                  <LinearGradient
+                    colors={[Colors.sage, Colors.sageDark]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.takenGrad}
+                  >
+                    <Ionicons name="checkmark" size={26} color={Colors.white} />
+                    <Text style={styles.takenText}>Taken</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <View style={styles.secondaryRow}>
+                  <TouchableOpacity
+                    style={[styles.skipBtn, respondToDose.isPending && styles.btnDisabled]}
+                    onPress={() => handleSkip(dose)}
+                    activeOpacity={0.85}
+                    disabled={respondToDose.isPending}
+                  >
+                    <Ionicons name="close" size={20} color={Colors.gray500} />
+                    <Text style={styles.skipText}>Skip</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.divider} />
+
+                  <TouchableOpacity
+                    style={styles.speakBtn}
+                    onPress={() =>
+                      speak(`Time to take your ${med?.name ?? 'medicine'}${med?.dose ? `, ${med.dose}` : ''}`)
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="volume-high" size={20} color={Colors.sage} />
+                    <Text style={styles.speakText}>Read aloud</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-            {!isPending ? (
-              <StatusBadge status={dose.status} />
-            ) : (
-              med?.criticality === 'high' && (
-                <Ionicons name="alert-circle" size={20} color={Colors.coral} />
-              )
             )}
           </View>
+        </AnimatedEntry>
+      );
+    },
+    [respondToDose.isPending]
+  );
 
-          {isPending && (
-            <View style={styles.cardActions}>
-              <TouchableOpacity onPress={() => handleTaken(dose)} activeOpacity={0.85} style={styles.takenWrap}>
-                <LinearGradient
-                  colors={[Colors.sage, Colors.sageDark]}
-                  style={styles.takenBtn}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Ionicons name="checkmark-circle" size={22} color="#fff" />
-                  <Text style={styles.takenText}>Mark as Taken</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <View style={styles.secondaryRow}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => handleSkip(dose)} activeOpacity={0.8}>
-                  <Ionicons name="close" size={16} color={Colors.gray500} />
-                  <Text style={styles.secondaryBtnText}>Skip</Text>
-                </TouchableOpacity>
-                <View style={styles.btnDivider} />
-                <TouchableOpacity
-                  style={styles.secondaryBtn}
-                  onPress={() => Speech.speak(`Time to take your ${med?.name ?? 'medicine'}${med?.dose ? `, ${med.dose}` : ''}`)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="volume-high" size={16} color={Colors.sage} />
-                  <Text style={[styles.secondaryBtnText, { color: Colors.sage }]}>Read aloud</Text>
-                </TouchableOpacity>
+  if (isLoading && !doses) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={[Colors.sage, Colors.sageDark, '#3D7359']} style={styles.header}>
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerContent}>
+              <View>
+                <Text style={styles.headerLabel}>{getGreeting()}</Text>
+                <Text style={styles.headerName}>{profile?.name?.split(' ')[0] ?? '…'}</Text>
               </View>
             </View>
-          )}
-        </View>
-      </AnimatedEntry>
+          </SafeAreaView>
+        </LinearGradient>
+        <SkeletonElderHome />
+      </View>
     );
   }
 
@@ -202,33 +252,29 @@ export function ElderHomeScreen() {
     <View style={styles.container}>
       <LinearGradient colors={[Colors.sage, Colors.sageDark, '#3D7359']} style={styles.header}>
         <SafeAreaView edges={['top']}>
-          <Animated.View
-            style={[styles.headerRow, { opacity: headerOpacity, transform: [{ translateY: headerY }] }]}
-          >
+          <Animated.View style={[styles.headerContent, { opacity: headerOpacity, transform: [{ translateY: headerTranslate }] }]}>
             <View>
-              <Text style={styles.greeting}>{greeting},</Text>
-              <Text style={styles.name}>{profile?.name?.split(' ')[0] ?? 'there'} 👋</Text>
+              <Text style={styles.headerLabel}>{getGreeting()},</Text>
+              <Text style={styles.headerName}>{profile?.name?.split(' ')[0] ?? 'there'}</Text>
             </View>
-            <TouchableOpacity style={styles.sosBtn} onLongPress={handleSOS} activeOpacity={0.85}>
-              <Ionicons name="alert-circle" size={20} color={Colors.coral} />
-              <Text style={styles.sosBtnText}>SOS</Text>
-            </TouchableOpacity>
-          </Animated.View>
 
-          <Animated.View style={[styles.headerPill, { opacity: headerOpacity }]}>
-            {pending.length > 0 ? (
-              <View style={styles.pill}>
-                <Ionicons name="medical" size={13} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.pillText}>
-                  {pending.length} dose{pending.length !== 1 ? 's' : ''} remaining today
-                </Text>
-              </View>
-            ) : doses && doses.length > 0 ? (
-              <View style={[styles.pill, styles.pillDone]}>
-                <Ionicons name="checkmark-circle" size={13} color="#fff" />
-                <Text style={styles.pillText}>All done for today!</Text>
-              </View>
-            ) : null}
+            <View style={styles.headerRight}>
+              {pending.length > 0 ? (
+                <View style={styles.dueChip}>
+                  <Text style={styles.dueChipText}>{pending.length} due</Text>
+                </View>
+              ) : (
+                <View style={[styles.dueChip, styles.allDoneChip]}>
+                  <Ionicons name="checkmark-circle" size={14} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.dueChipText}>All done!</Text>
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.sosBtn} onPress={handleSOS} activeOpacity={0.8}>
+                <Ionicons name="alert-circle" size={22} color={Colors.coral} />
+                <Text style={styles.sosBtnText}>SOS</Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </SafeAreaView>
       </LinearGradient>
@@ -237,17 +283,33 @@ export function ElderHomeScreen() {
         data={[...pending, ...done]}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={Colors.sage} />}
-        renderItem={({ item, index }) => renderCard(item, index)}
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.empty}>
-              <Ionicons name="medical-outline" size={52} color={Colors.gray200} />
-              <Text style={styles.emptyTitle}>No medicines today</Text>
-              <Text style={styles.emptyText}>Nothing is scheduled for today.</Text>
+        onRefresh={refetch}
+        refreshing={false}
+        windowSize={5}
+        maxToRenderPerBatch={8}
+        removeClippedSubviews
+        ListHeaderComponent={
+          allDone ? (
+            <AnimatedEntry index={0}>
+              <View style={styles.allDoneWrap}>
+                <LinearGradient colors={['#D1FAE5', '#A7F3D0']} style={styles.allDoneIcon}>
+                  <Ionicons name="checkmark-circle" size={40} color={Colors.success} />
+                </LinearGradient>
+                <Text style={styles.allDoneTitle}>All done for today!</Text>
+                <Text style={styles.allDoneSub}>Great job staying on track.</Text>
+              </View>
+            </AnimatedEntry>
+          ) : noMeds ? (
+            <View style={styles.allDoneWrap}>
+              <LinearGradient colors={['#EBF5EF', '#D4EDDF']} style={styles.allDoneIcon}>
+                <Ionicons name="medical-outline" size={40} color={Colors.sage} />
+              </LinearGradient>
+              <Text style={styles.allDoneTitle}>No medicines scheduled</Text>
+              <Text style={styles.allDoneSub}>Your caregiver will add medicines for today.</Text>
             </View>
           ) : null
         }
+        renderItem={renderDoseCard}
       />
     </View>
   );
@@ -255,135 +317,43 @@ export function ElderHomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
-
-  header: { paddingBottom: Spacing[2] },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing[5],
-    paddingTop: Spacing[4],
-    paddingBottom: Spacing[2],
-  },
-  greeting: { fontSize: FontSizes.base, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
-  name: { fontSize: FontSizes['2xl'], fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
-  sosBtn: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  sosBtnText: { fontSize: 10, color: Colors.coral, fontWeight: '800', letterSpacing: 1 },
-  headerPill: { paddingHorizontal: Spacing[5], paddingBottom: Spacing[5] },
-  pill: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignSelf: 'flex-start',
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  pillDone: { backgroundColor: 'rgba(16,185,129,0.4)' },
-  pillText: { fontSize: FontSizes.sm, color: '#fff', fontWeight: '600' },
-
-  list: { padding: Spacing[4], gap: Spacing[4], paddingBottom: 100 },
-
-  card: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.xl,
-    padding: Spacing[4],
-    borderWidth: 1.5,
-    borderColor: Colors.gray200,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  cardPending: {
-    borderColor: Colors.sage,
-    shadowColor: Colors.sage,
-    shadowOpacity: 0.22,
-    elevation: 5,
-  },
-  cardOverdue: {
-    borderColor: Colors.coral,
-    shadowColor: Colors.coral,
-    shadowOpacity: 0.22,
-  },
-  overdueBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: Colors.coral,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 4,
-    borderBottomLeftRadius: Radius.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  overdueBadgeText: { fontSize: 10, color: '#fff', fontWeight: '800', letterSpacing: 0.3 },
-
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], marginBottom: Spacing[4] },
-  photoWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.lg,
-    backgroundColor: '#EBF5EF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  photoWrapDone: { backgroundColor: Colors.gray100 },
-  photo: { width: 72, height: 72 },
-  cardMeta: { flex: 1, gap: 3 },
-  medName: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.navy },
-  medDose: { fontSize: FontSizes.sm, color: Colors.gray500 },
-  timeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  timeText: { fontSize: FontSizes.sm, color: Colors.sage, fontWeight: '600' },
-
-  cardActions: { gap: Spacing[2] },
-  takenWrap: { borderRadius: Radius.md, overflow: 'hidden' },
-  takenBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing[4],
-    gap: Spacing[2],
-  },
-  takenText: { color: '#fff', fontWeight: '800', fontSize: FontSizes.lg, letterSpacing: 0.2 },
-
-  secondaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.gray100,
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.gray200,
-  },
-  secondaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 5,
-  },
-  secondaryBtnText: { fontSize: FontSizes.sm, color: Colors.gray500, fontWeight: '600' },
-  btnDivider: { width: 1, height: 20, backgroundColor: Colors.gray300 },
-
-  empty: { alignItems: 'center', paddingTop: Spacing[16], gap: Spacing[3] },
-  emptyTitle: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.navy },
-  emptyText: { fontSize: FontSizes.base, color: Colors.gray400 },
+  header: { paddingBottom: Spacing[5] },
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing[5], paddingTop: Spacing[4], paddingBottom: Spacing[2] },
+  headerLabel: { fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  headerName: { fontSize: FontSizes['2xl'], fontWeight: '800', color: Colors.white },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
+  dueChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: Spacing[3], paddingVertical: 6, borderRadius: Radius.full },
+  allDoneChip: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  dueChipText: { fontSize: FontSizes.sm, color: 'rgba(255,255,255,0.9)', fontWeight: '700' },
+  sosBtn: { alignItems: 'center', gap: 2, backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: Spacing[3], paddingVertical: 6, borderRadius: Radius.md },
+  sosBtnText: { fontSize: 10, color: Colors.coral, fontWeight: '800' },
+  list: { padding: Spacing[4], gap: Spacing[3], paddingBottom: 100 },
+  allDoneWrap: { alignItems: 'center', paddingVertical: Spacing[8], gap: Spacing[3] },
+  allDoneIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  allDoneTitle: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.navy },
+  allDoneSub: { fontSize: FontSizes.base, color: Colors.gray400, textAlign: 'center' },
+  doseCard: { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing[4], borderWidth: 1.5, borderColor: Colors.gray200, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  doseCardPending: { borderColor: Colors.sage, shadowColor: Colors.sage, shadowOpacity: 0.15, elevation: 3 },
+  doseCardOverdue: { borderColor: Colors.coral, shadowColor: Colors.coral, shadowOpacity: 0.12 },
+  overdueBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, position: 'absolute', top: -1, right: Spacing[3], backgroundColor: Colors.coral, paddingHorizontal: 8, paddingVertical: 3, borderBottomLeftRadius: Radius.sm, borderBottomRightRadius: Radius.sm },
+  overdueText: { fontSize: 10, color: Colors.white, fontWeight: '700' },
+  doseHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], marginBottom: Spacing[3] },
+  pillPhoto: { width: 72, height: 72, borderRadius: Radius.md },
+  pillPhotoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  doseInfo: { flex: 1 },
+  doseName: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.navy },
+  doseDose: { fontSize: FontSizes.base, color: Colors.gray500, marginTop: 2 },
+  doseTime: { fontSize: FontSizes.base, color: Colors.sage, fontWeight: '600', marginTop: 2 },
+  critBadge: { position: 'absolute', top: 0, right: 0 },
+  actions: { gap: Spacing[2] },
+  takenBtn: { borderRadius: Radius.md, overflow: 'hidden' },
+  takenGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing[3], gap: Spacing[2] },
+  takenText: { color: Colors.white, fontWeight: '800', fontSize: FontSizes.lg },
+  btnDisabled: { opacity: 0.55 },
+  secondaryRow: { flexDirection: 'row', backgroundColor: Colors.gray100, borderRadius: Radius.md, overflow: 'hidden' },
+  skipBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: Spacing[1] },
+  skipText: { color: Colors.gray500, fontWeight: '600', fontSize: FontSizes.sm },
+  divider: { width: 1, backgroundColor: Colors.gray200 },
+  speakBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: Spacing[1] },
+  speakText: { color: Colors.sage, fontWeight: '600', fontSize: FontSizes.sm },
 });

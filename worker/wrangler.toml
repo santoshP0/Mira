@@ -6,6 +6,9 @@ compatibility_date = "2024-01-01"
 crons = ["* * * * *"]
 
 [vars]
-# Set actual values via: wrangler secret put SUPABASE_URL
-# wrangler secret put SUPABASE_SERVICE_KEY
-# wrangler secret put FCM_SERVER_KEY
+# Set actual values via:
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_KEY
+#
+# No FCM server key needed — push notifications go through Expo's push API,
+# which handles FCM (Android) and APNs (iOS) automatically.

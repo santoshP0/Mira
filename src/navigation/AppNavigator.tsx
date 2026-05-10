@@ -6,23 +6,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { Colors } from '../constants/theme';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { OfflineBanner } from '../components/common/OfflineBanner';
+import { useAppStateFocus } from '../lib/offline';
 import { RootStackParamList, MainTabParamList } from '../types';
 
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
 import { PhoneAuthScreen } from '../screens/auth/PhoneAuthScreen';
 import { RoleSelectScreen } from '../screens/auth/RoleSelectScreen';
 import { ProfileSetupScreen } from '../screens/auth/ProfileSetupScreen';
-
 import { FamilySetupScreen } from '../screens/family/FamilySetupScreen';
 import { ScanQRScreen } from '../screens/family/ScanQRScreen';
 import { JoinFamilyScreen } from '../screens/family/JoinFamilyScreen';
 import { FamilyMembersScreen } from '../screens/family/FamilyMembersScreen';
-
 import { AddMedicineScreen } from '../screens/medicine/AddMedicineScreen';
 import { EditMedicineScreen } from '../screens/medicine/EditMedicineScreen';
-
 import { DoseDetailScreen } from '../screens/doses/DoseDetailScreen';
-
 import { HomeScreen } from '../screens/HomeScreen';
 import { MedicinesScreen } from '../screens/MedicinesScreen';
 import { ActivityFeedScreen } from '../screens/activity/ActivityFeedScreen';
@@ -60,7 +59,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       {role !== 'elder' && (
-        <Tab.Screen name="Medicines" component={MedicinesScreen} options={{ title: 'Medicines' }} />
+        <Tab.Screen name="Medicines" component={MedicinesScreen} />
       )}
       <Tab.Screen name="Activity" component={ActivityFeedScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
@@ -68,8 +67,10 @@ function MainTabs() {
   );
 }
 
-export function AppNavigator() {
-  const { session, profile, family, isLoading } = useAuthStore();
+function AppContent() {
+  const { session, family, isLoading } = useAuthStore();
+
+  useAppStateFocus();
 
   if (isLoading) {
     return (
@@ -81,15 +82,12 @@ export function AppNavigator() {
 
   const linking = {
     prefixes: ['mira://'],
-    config: {
-      screens: {
-        JoinFamily: 'join',
-      },
-    },
+    config: { screens: { JoinFamily: 'join' } },
   };
 
   return (
     <NavigationContainer linking={linking}>
+      <OfflineBanner />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <>
@@ -120,12 +118,12 @@ export function AppNavigator() {
             <Stack.Screen
               name="DoseDetail"
               component={DoseDetailScreen}
-              options={{ headerShown: true, title: 'Dose Details', headerTintColor: Colors.sage }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="FamilyMembers"
               component={FamilyMembersScreen}
-              options={{ headerShown: true, title: 'Family Circle', headerTintColor: Colors.sage }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen name="ScanQR" component={ScanQRScreen} />
             <Stack.Screen name="JoinFamily" component={JoinFamilyScreen} />
@@ -133,6 +131,14 @@ export function AppNavigator() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export function AppNavigator() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }
 
