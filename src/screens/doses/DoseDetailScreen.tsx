@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,9 @@ import {
   Image,
   Alert,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -30,11 +32,30 @@ export function DoseDetailScreen({ navigation, route }: Props) {
   const handleDose = useHandleDose();
   const [acting, setActing] = useState(false);
 
+  const actionsY = useRef(new Animated.Value(40)).current;
+  const actionsOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(actionsOpacity, { toValue: 1, duration: 400, delay: 300, useNativeDriver: true }),
+      Animated.spring(actionsY, { toValue: 0, delay: 300, tension: 80, friction: 8, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   const med = doseLog.medicine as any;
   const overdue = minutesOverdue(doseLog.scheduled_at);
   const isPending = doseLog.status === 'pending';
   const isEscalated = doseLog.status === 'escalated';
   const handler = doseLog.handler as any;
+
+  const STATUS_GRADIENT: Record<string, [string, string]> = {
+    pending: [Colors.gray100, Colors.gray100],
+    taken: ['#D1FAE5', '#A7F3D0'],
+    skipped: ['#FEF3C7', '#FDE68A'],
+    missed: ['#FEE2E2', '#FECACA'],
+    escalated: ['#FEE2E2', '#FECACA'],
+  };
+  const gradColors = STATUS_GRADIENT[doseLog.status] ?? STATUS_GRADIENT.pending;
 
   async function respond(status: 'taken' | 'skipped') {
     setActing(true);
@@ -74,21 +95,24 @@ export function DoseDetailScreen({ navigation, route }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Medicine card */}
       <Card elevated style={styles.medCard}>
-        <View style={styles.medHeader}>
-          {med?.photo_url ? (
-            <Image source={{ uri: med.photo_url }} style={styles.pillPhoto} />
-          ) : (
-            <View style={[styles.pillPhoto, styles.pillPlaceholder]}>
-              <Ionicons name="medical" size={36} color={Colors.sage} />
-            </View>
-          )}
+        <View style={styles.medRow}>
+          <View style={styles.photoWrap}>
+            {med?.photo_url ? (
+              <Image source={{ uri: med.photo_url }} style={styles.photo} />
+            ) : (
+              <LinearGradient colors={['#EBF5EF', '#D4EDDF']} style={styles.photoPlaceholder}>
+                <Ionicons name="medical" size={38} color={Colors.sage} />
+              </LinearGradient>
+            )}
+          </View>
           <View style={styles.medInfo}>
             <Text style={styles.medName}>{med?.name ?? 'Medicine'}</Text>
-            {med?.dose && <Text style={styles.medDose}>{med.dose}</Text>}
+            {med?.dose ? <Text style={styles.medDose}>{med.dose}</Text> : null}
             {med?.criticality === 'high' && (
-              <View style={styles.critRow}>
-                <Ionicons name="alert-circle" size={14} color={Colors.coral} />
+              <View style={styles.critChip}>
+                <Ionicons name="alert-circle" size={12} color={Colors.coral} />
                 <Text style={styles.critText}>High criticality</Text>
               </View>
             )}
@@ -96,64 +120,82 @@ export function DoseDetailScreen({ navigation, route }: Props) {
         </View>
       </Card>
 
-      <Card style={styles.statusCard}>
-        <View style={styles.statusRow}>
-          <View>
-            <Text style={styles.statusLabel}>Scheduled</Text>
-            <Text style={styles.statusValue}>{formatTime(doseLog.scheduled_at)}</Text>
-            <Text style={styles.statusSub}>{formatDate(doseLog.scheduled_at)}</Text>
+      {/* Status card with gradient */}
+      <View style={styles.statusCard}>
+        <LinearGradient colors={gradColors} style={styles.statusGrad}>
+          <View style={styles.statusTop}>
+            <View>
+              <Text style={styles.statusLabel}>Scheduled</Text>
+              <Text style={styles.statusTime}>{formatTime(doseLog.scheduled_at)}</Text>
+              <Text style={styles.statusDate}>{formatDate(doseLog.scheduled_at)}</Text>
+            </View>
+            <StatusBadge status={doseLog.status} />
           </View>
-          <StatusBadge status={doseLog.status} />
-        </View>
 
-        {isPending && overdue > 0 && (
-          <View style={styles.overdueRow}>
-            <Ionicons name="time" size={16} color={Colors.coral} />
-            <Text style={styles.overdueText}>{overdue} minutes overdue</Text>
-          </View>
-        )}
+          {isPending && overdue > 0 && (
+            <View style={styles.overdueRow}>
+              <Ionicons name="time" size={15} color={Colors.coral} />
+              <Text style={styles.overdueText}>{overdue} min overdue</Text>
+            </View>
+          )}
 
-        {doseLog.responded_at && (
-          <View style={styles.respondedRow}>
-            <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-            <Text style={styles.respondedText}>Responded {formatRelative(doseLog.responded_at)}</Text>
-          </View>
-        )}
-      </Card>
+          {doseLog.responded_at && (
+            <View style={styles.respondedRow}>
+              <Ionicons name="checkmark-circle" size={15} color={Colors.success} />
+              <Text style={styles.respondedText}>Responded {formatRelative(doseLog.responded_at)}</Text>
+            </View>
+          )}
+        </LinearGradient>
+      </View>
 
+      {/* Handler card */}
       {handler && (
         <Card style={styles.handlerCard}>
           <View style={styles.handlerRow}>
-            <Avatar name={handler.name} size={40} />
-            <View>
+            <Avatar name={handler.name} size={44} />
+            <View style={{ flex: 1 }}>
               <Text style={styles.handlerName}>{handler.name}</Text>
-              <Text style={styles.handlerLabel}>is calling</Text>
+              <Text style={styles.handlerSub}>is calling right now</Text>
             </View>
-            <Ionicons name="call" size={20} color={Colors.sage} />
+            <View style={styles.callingBadge}>
+              <Ionicons name="call" size={16} color={Colors.sage} />
+            </View>
           </View>
         </Card>
       )}
 
+      {/* Actions */}
       {(isPending || isEscalated) && (
-        <View style={styles.actions}>
-          {myMembership?.role !== 'caregiver' ? (
+        <Animated.View
+          style={[
+            styles.actions,
+            { opacity: actionsOpacity, transform: [{ translateY: actionsY }] },
+          ]}
+        >
+          {myMembership?.role !== 'caregiver' && (
             <>
-              <Button
-                label="Mark as Taken"
-                onPress={() => respond('taken')}
-                loading={acting}
-                size="lg"
-                style={styles.fullBtn}
-              />
+              <TouchableOpacity onPress={() => respond('taken')} activeOpacity={0.85} style={styles.takenWrap}>
+                <LinearGradient
+                  colors={[Colors.sage, Colors.sageDark]}
+                  style={styles.takenBtn}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                  <Text style={styles.takenText}>
+                    {acting ? 'Saving…' : 'Mark as Taken'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
               <Button
                 label="Skip this dose"
                 onPress={() => respond('skipped')}
                 variant="secondary"
                 size="lg"
-                style={styles.fullBtn}
+                style={{ width: '100%' }}
               />
             </>
-          ) : null}
+          )}
 
           {isEscalated && !handler && myMembership?.role !== 'elder' && (
             <Button
@@ -162,10 +204,10 @@ export function DoseDetailScreen({ navigation, route }: Props) {
               loading={acting}
               variant="secondary"
               size="lg"
-              style={[styles.fullBtn, styles.handleBtn] as any}
+              style={[{ width: '100%' }, { borderColor: Colors.sage }] as any}
             />
           )}
-        </View>
+        </Animated.View>
       )}
     </ScrollView>
   );
@@ -174,29 +216,74 @@ export function DoseDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
   content: { padding: Spacing[4], gap: Spacing[3], paddingBottom: 100 },
-  medCard: {},
-  medHeader: { flexDirection: 'row', gap: Spacing[4], alignItems: 'center' },
-  pillPhoto: { width: 80, height: 80, borderRadius: Radius.md },
-  pillPlaceholder: { backgroundColor: Colors.gray100, alignItems: 'center', justifyContent: 'center' },
-  medInfo: { flex: 1, gap: 4 },
-  medName: { fontSize: FontSizes.xl, fontWeight: '800', color: Colors.navy },
+
+  medCard: { padding: 0, overflow: 'hidden' },
+  medRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[4], padding: Spacing[4] },
+  photoWrap: { width: 88, height: 88, borderRadius: Radius.lg, overflow: 'hidden' },
+  photo: { width: 88, height: 88 },
+  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  medInfo: { flex: 1, gap: 5 },
+  medName: { fontSize: FontSizes.xl, fontWeight: '800', color: Colors.navy, letterSpacing: -0.3 },
   medDose: { fontSize: FontSizes.base, color: Colors.gray500 },
-  critRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  critText: { fontSize: FontSizes.xs, color: Colors.coral, fontWeight: '600' },
-  statusCard: {},
-  statusRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Spacing[3] },
-  statusLabel: { fontSize: FontSizes.xs, color: Colors.gray400, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  statusValue: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.navy },
-  statusSub: { fontSize: FontSizes.sm, color: Colors.gray400 },
-  overdueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], backgroundColor: '#FEF2F2', borderRadius: Radius.sm, padding: Spacing[3] },
-  overdueText: { fontSize: FontSizes.sm, color: Colors.coral, fontWeight: '600' },
+  critChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    alignSelf: 'flex-start',
+  },
+  critText: { fontSize: FontSizes.xs, color: Colors.coral, fontWeight: '700' },
+
+  statusCard: { borderRadius: Radius.lg, overflow: 'hidden' },
+  statusGrad: { padding: Spacing[4] },
+  statusTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Spacing[3] },
+  statusLabel: {
+    fontSize: FontSizes.xs,
+    color: Colors.gray500,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  statusTime: { fontSize: FontSizes['2xl'], fontWeight: '800', color: Colors.navy },
+  statusDate: { fontSize: FontSizes.sm, color: Colors.gray500, marginTop: 2 },
+  overdueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    backgroundColor: 'rgba(248,113,113,0.12)',
+    borderRadius: Radius.sm,
+    padding: Spacing[3],
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.coral,
+  },
+  overdueText: { fontSize: FontSizes.sm, color: Colors.coral, fontWeight: '700' },
   respondedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], marginTop: Spacing[2] },
-  respondedText: { fontSize: FontSizes.sm, color: Colors.success },
+  respondedText: { fontSize: FontSizes.sm, color: Colors.success, fontWeight: '500' },
+
   handlerCard: {},
   handlerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
-  handlerName: { fontSize: FontSizes.base, fontWeight: '600', color: Colors.navy },
-  handlerLabel: { fontSize: FontSizes.sm, color: Colors.gray500 },
+  handlerName: { fontSize: FontSizes.base, fontWeight: '700', color: Colors.navy },
+  handlerSub: { fontSize: FontSizes.sm, color: Colors.sage, fontWeight: '500' },
+  callingBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EBF5EF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   actions: { gap: Spacing[3] },
-  fullBtn: { width: '100%' },
-  handleBtn: { borderColor: Colors.sage },
+  takenWrap: { borderRadius: Radius.md, overflow: 'hidden' },
+  takenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing[4],
+    gap: Spacing[2],
+  },
+  takenText: { color: '#fff', fontWeight: '800', fontSize: FontSizes.lg },
 });
