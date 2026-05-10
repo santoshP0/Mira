@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Mira",
+    "slug": "mira",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "mira",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FBF7F0"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mira.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Mira needs camera access to scan QR codes and photograph medicines.",
+        "NSPhotoLibraryUsageDescription": "Mira needs photo library access to add medicine images.",
+        "NSLocationWhenInUseUsageDescription": "Mira needs your location for SOS emergency alerts."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FBF7F0"
+      },
+      "package": "com.mira.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#7BA88F"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Mira needs camera access to scan QR codes."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Mira needs your location for SOS emergency alerts."
+        }
+      ]
+    ]
+  }
+}
