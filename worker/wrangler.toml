@@ -1,0 +1,14 @@
+name = "mira-escalation"
+main = "index.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# Set actual values via:
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_KEY
+#
+# No FCM server key needed — push notifications go through Expo's push API,
+# which handles FCM (Android) and APNs (iOS) automatically.
